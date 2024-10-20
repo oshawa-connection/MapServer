@@ -37,27 +37,29 @@
 #include "fontcache.h"
 #include <string.h>
 
+typedef struct blender {
+  BLImage * img;
+  BLContext * context;
+} blender;
+
 void initializeCache(void **vcache) {
 
 }
 
 int cleanupBlend(void *cache) {
-  msSetError(MS_MISCERR, "Not implemented",
-             "freeImageBlend()");
-  return MS_FAILURE;
+
+  return MS_SUCCESS;
 }
 
 
 int freeImageBlend(imageObj *img) {
-  msSetError(MS_MISCERR, "Not implemented",
-             "freeImageBlend()");
-  return MS_FAILURE;
+
+  return MS_SUCCESS;
 }
 
 int renderLineBlend(imageObj *img, shapeObj *p, strokeStyleObj *stroke) {
-  msSetError(MS_MISCERR, "Not implemented",
-             "renderLineBlend()");
-  return MS_FAILURE;
+
+  return MS_SUCCESS;
 }
 
 int renderPolygonTiledBlend(imageObj *img, shapeObj *p, imageObj *tile) {
@@ -104,8 +106,20 @@ imageObj *createImageBlend(int width, int height, outputFormatObj *format,
                            colorObj *bg) {
   imageObj *image = NULL;
 
-  msSetError(MS_MISCERR, "Not implemented",
-             "createImageBlend()");
+  image = (imageObj *)calloc(1, sizeof(imageObj));
+  BLContextCreateInfo createInfo {};
+
+  // Configure the number of threads to use.
+  //
+  createInfo.threadCount = 10;
+  auto renderer = new BLImage(width, height, BL_FORMAT_PRGB32);
+  auto ctx = new BLContext(*renderer,createInfo);
+  blender * x = NULL;
+  x = (blender *)calloc(1, sizeof(x));
+  x->img = renderer;
+  x->context = ctx;
+
+  image->img.plugin = x;
 
   return image;
 
@@ -127,21 +141,38 @@ int renderEllipseSymbolBlend(imageObj *img, double x, double y,
 
 
 int startLayerRasterBlend(imageObj *img, mapObj *map, layerObj *layer) {
-  msSetError(MS_MISCERR, "Not implemented",
-             "startLayerRasterBlend()");
-  return MS_FAILURE;
+  return MS_SUCCESS;
 }
 
 int closeLayerRasterBlend(imageObj *img, mapObj *map, layerObj *layer) {
-  msSetError(MS_MISCERR, "Not implemented",
-             "closeLayerRasterBlend()");
-  return MS_FAILURE;
+  auto blend = (blender*)img->img.plugin;
+  blend->context->end();
+  return MS_SUCCESS;
 }
 
 int getRasterBufferHandleBlend(imageObj *img, rasterBufferObj *rb) {
-  msSetError(MS_MISCERR, "Not implemented",
-             "getRasterBufferHandleBlend()");
-  return MS_FAILURE;
+  unsigned char *pb;
+  auto blend = (blender*)img->img.plugin;
+  rb->type = MS_BUFFER_BYTE_RGBA;
+  auto imgData = new BLImageData{};
+
+  blend->img->getData(imgData);
+
+  pb = (unsigned char *)imgData->pixelData;
+  rb->data.rgba.pixels = (unsigned char *)imgData->pixelData;
+  rb->data.rgba.row_step = imgData->stride;
+  rb->data.rgba.pixel_step = 4;
+  rb->width = imgData->size.w;
+  rb->height = imgData->size.h;
+
+  rb->data.rgba.r = &(pb[2]);
+  rb->data.rgba.g = &(pb[1]);
+  rb->data.rgba.b = &(pb[0]);
+
+  rb->data.rgba.a = &(pb[3]);
+
+  return MS_SUCCESS;
+
 }
 
 int getRasterBufferCopyBlend(imageObj *img, rasterBufferObj *rb) {
@@ -176,9 +207,22 @@ int freeSymbolBlend(symbolObj *s) {
 
 
 int renderPolygonBlend(imageObj *img, shapeObj *p, colorObj *c) {
-  msSetError(MS_MISCERR, "Not implemented",
-             "renderPolygonBlend()");
-  return MS_FAILURE;
+  auto blend = (blender*)img->img.plugin;
+
+  for (int i = 0; i < p->numlines; i++) {
+    BLPath path;
+
+    lineObj *l = &(p->line[i]);
+    path.moveTo(l->point[0].x, l->point[0].y);
+
+    for (int j = 1; j < l->numpoints; j++) {
+      path.lineTo(l->point[j].x, l->point[j].y);
+    }
+    path.close();
+    blend->context->fillPath(path, BLRgba(255, 0, 0, 1.0));
+  }
+
+  return MS_SUCCESS;
 }
 
 int msPopulateRendererVTableBlend(rendererVTableObj *renderer) {
