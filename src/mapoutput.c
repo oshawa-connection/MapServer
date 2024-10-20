@@ -30,6 +30,7 @@
 #include <assert.h>
 #include "mapserver.h"
 #include "mapows.h"
+#include "mapblend2d.h"
 
 static outputFormatObj *msAllocOutputFormat(mapObj *map, const char *name,
                                             const char *driver);
@@ -106,6 +107,7 @@ struct defaultOutputFormatEntry defaultoutputformats[] = {
     {"png24", "AGG/PNG", "image/png; mode=24bit"},
     {"jpegpng", "AGG/MIXED", "image/vnd.jpeg-png"},
     {"jpegpng8", "AGG/MIXED", "image/vnd.jpeg-png8"},
+    {"png","BLEND/PNG","image/png"},
 #ifdef USE_CAIRO
     {"pdf", "CAIRO/PDF", "application/x-pdf"},
     {"svg", "CAIRO/SVG", "image/svg+xml"},
@@ -258,6 +260,15 @@ outputFormatObj *msCreateDefaultOutputFormat(mapObj *map, const char *driver,
     format->imagemode = MS_IMAGEMODE_RGBA;
     format->extension = msStrdup("XXX");
     format->renderer = MS_RENDER_WITH_AGG;
+  }
+
+  else if( strcasecmp(driver,"BLEND/PNG") == 0 ) {
+    if(!name) name="png";
+    format = msAllocOutputFormat( map, name, driver );
+    format->mimetype = msStrdup("image/png");
+    format->imagemode = MS_IMAGEMODE_RGB;
+    format->extension = msStrdup("png");
+    format->renderer = MS_RENDER_WITH_BLEND;
   }
 
 #if defined(USE_CAIRO)
@@ -1071,6 +1082,8 @@ int msInitializeRendererVTable(outputFormatObj *format) {
   switch (format->renderer) {
   case MS_RENDER_WITH_AGG:
     return msPopulateRendererVTableAGG(format->vtable);
+  case MS_RENDER_WITH_BLEND:
+    return msPopulateRendererVTableBlend(format->vtable);
   case MS_RENDER_WITH_UTFGRID:
     return msPopulateRendererVTableUTFGrid(format->vtable);
 #ifdef USE_PBF

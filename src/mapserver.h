@@ -429,6 +429,7 @@ static __inline long int MS_NINT(double __x) {
 #define MS_RENDER_WITH_KML 106
 #define MS_RENDER_WITH_UTFGRID 107
 #define MS_RENDER_WITH_MVT 108
+#define MS_RENDER_WITH_BLEND 110
 
 #ifndef SWIG
 
@@ -3963,6 +3964,8 @@ MS_DLL_EXPORT int msInitializeDummyRenderer(rendererVTableObj *vtable);
 MS_DLL_EXPORT int msInitializeRendererVTable(outputFormatObj *outputformat);
 MS_DLL_EXPORT int
 msPopulateRendererVTableCairoRaster(rendererVTableObj *renderer);
+
+MS_DLL_EXPORT int msPopulateRendererVTableBlend(rendererVTableObj *renderer);
 MS_DLL_EXPORT int msPopulateRendererVTableCairoSVG(rendererVTableObj *renderer);
 MS_DLL_EXPORT int msPopulateRendererVTableCairoPDF(rendererVTableObj *renderer);
 MS_DLL_EXPORT int msPopulateRendererVTableOGL(rendererVTableObj *renderer);

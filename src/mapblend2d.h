@@ -1,1 +1,2 @@
-#pragma once
+#include "mapserver.h"
+int msPopulateRendererVTableBlend(rendererVTableObj *renderer);

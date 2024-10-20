@@ -259,6 +259,7 @@ endif()
 SET(CMAKE_MACOSX_RPATH ON)
 
 if(LINK_STATIC_LIBMAPSERVER)
+    SET("HANG TOUGH")
   set(BUILD_STATIC 1)
   set(BUILD_DYNAMIC 0)
   set(MAPSERVER_LIBMAPSERVER mapserver_static)
@@ -396,6 +397,7 @@ endif (WITH_PROTOBUFC)
 
 
 if(BUILD_DYNAMIC)
+    MESSAGE("DYNAMIC")
   add_library(mapserver SHARED ${vectortile_SOURCES} ${mapserver_SOURCES} ${agg_SOURCES} ${v8_SOURCES} ${flatgeobuf_SOURCES})
   set_target_properties( mapserver  PROPERTIES
     VERSION ${MapServer_VERSION_STRING}
@@ -404,12 +406,15 @@ if(BUILD_DYNAMIC)
 endif(BUILD_DYNAMIC)
 
 if(BUILD_STATIC)
+    MESSAGE("${mapserver_SOURCES}")
   add_library(mapserver_static STATIC ${vectortile_SOURCES} ${mapserver_SOURCES} ${agg_SOURCES} ${v8_SOURCES} ${flatgeobuf_SOURCES})
   set_target_properties( mapserver_static PROPERTIES
     VERSION ${MapServer_VERSION_STRING}
     SOVERSION 2
   )
 endif(BUILD_STATIC)
+
+
 
 #SOVERSION is not necessarily the same as the
 #major version. The rule is that any breakage of the ABI must be
@@ -421,10 +426,11 @@ endif(BUILD_STATIC)
 if( NOT FUZZER )
 add_executable(mapserv src/apps/mapserv.c)
 target_link_libraries(mapserv ${MAPSERVER_LIBMAPSERVER})
-add_executable(map2img src/apps/map2img.c src/mapblend2d.cpp src/mapblend2d.h)
+
+add_executable(map2img src/apps/map2img.c)
 target_link_libraries(map2img ${MAPSERVER_LIBMAPSERVER})
 # TEMPORARY
-target_link_libraries(map2img blend2d::blend2d)
+#target_link_libraries(map2img )
 # END TEMPORARY
 
 add_executable(shptree src/apps/shptree.c)
@@ -561,6 +567,9 @@ endif (WITH_ICONV)
 if(WITH_GENERIC_NINT)
    set(USE_GENERIC_MS_NINT 1)
 endif(WITH_GENERIC_NINT)
+
+MESSAGE("HELLO WORLD")
+target_link_libraries(mapserver_static PRIVATE blend2d::blend2d)
 
 
 if(WITH_CAIRO)
