@@ -1251,6 +1251,7 @@ int msWMSLoadGetMapParams(mapObj *map, int nVersion, char **names,
           if (format == NULL ||
               (strncasecmp(format->driver, "MVT", 3) != 0 &&
                strncasecmp(format->driver, "GDAL/", 5) != 0 &&
+               strncasecmp(format->driver, "BLEND/", 6) != 0 &&
                strncasecmp(format->driver, "AGG/", 4) != 0 &&
                strncasecmp(format->driver, "UTFGRID", 7) != 0 &&
                strncasecmp(format->driver, "CAIRO/", 6) != 0 &&
