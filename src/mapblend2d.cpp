@@ -29,7 +29,6 @@
 
 #include "mapblend2d.h"
 #include <blend2d.h>
-//#include "/home/james/Documents/blend/src/blend2d.h"
 #include "mapserver.h"
 #include <cpl_string.h>
 #include "cpl_conv.h"
@@ -41,6 +40,16 @@ typedef struct blender {
   BLImage * img;
   BLContext * context;
 } blender;
+
+static BLRgba colorObjToBlendRgba(colorObj * c) {
+  return BLRgba(c->red/ 255.0, c->green/ 255.0, c->blue/255.0, c->alpha /255.0);
+}
+
+
+static blender * imgContextToBlendContext(imageObj *img) {
+  return (blender*)img->img.plugin;
+}
+
 
 void initializeCache(void **vcache) {
 
@@ -57,8 +66,62 @@ int freeImageBlend(imageObj *img) {
   return MS_SUCCESS;
 }
 
-int renderLineBlend(imageObj *img, shapeObj *p, strokeStyleObj *stroke) {
 
+
+/**
+ *
+ * @param mapserverLineCap
+ * @return
+ */
+static uint32_t mapserverLineCapToBlendLineCap(int mapserverLineCap) {
+  switch (mapserverLineCap) {
+    case MS_CJC_BUTT:
+      return BL_STROKE_CAP_BUTT;
+      break;
+    case MS_CJC_SQUARE:
+      return BL_STROKE_CAP_SQUARE;
+      break;
+    case MS_CJC_ROUND:
+      return BL_STROKE_CAP_ROUND;
+      break;
+    default:
+      msDebug("Unrecognised or unsupported MapServer line cap option. Reverting to default line cap.");
+      return BL_STROKE_CAP_BUTT;
+  }
+}
+
+int renderLineBlend(imageObj *img, shapeObj *p, strokeStyleObj *stroke) {
+  msDebug("CALLING LINE");
+  auto blend = imgContextToBlendContext(img);
+  blend->context->save();
+
+  BLPath line;
+
+  auto color = colorObjToBlendRgba(stroke->color);
+  BLStrokeOptions options{};
+  auto linecap = mapserverLineCapToBlendLineCap(stroke->linecap);
+
+  options.startCap = linecap;
+  options.endCap = linecap;
+  blend->context->setStrokeOptions(options);
+
+  blend->context->setStrokeStyle(color);
+  blend->context->setStrokeWidth(stroke->width);
+  //stroke->linecap
+  for (int i = 0; i < p->numlines; i++) {
+    BLPath path;
+
+    lineObj *l = &(p->line[i]);
+    path.moveTo(l->point[0].x, l->point[0].y);
+
+    for (int j = 1; j < l->numpoints; j++) {
+      path.lineTo(l->point[j].x, l->point[j].y);
+    }
+
+    blend->context->strokePath(path);
+  }
+
+  blend->context->restore();
   return MS_SUCCESS;
 }
 
@@ -205,10 +268,10 @@ int freeSymbolBlend(symbolObj *s) {
   return MS_FAILURE;
 }
 
-
 int renderPolygonBlend(imageObj *img, shapeObj *p, colorObj *c) {
-  auto blend = (blender*)img->img.plugin;
 
+  auto blend = imgContextToBlendContext(img);
+  auto color = colorObjToBlendRgba(c);
   for (int i = 0; i < p->numlines; i++) {
     BLPath path;
 
@@ -219,7 +282,8 @@ int renderPolygonBlend(imageObj *img, shapeObj *p, colorObj *c) {
       path.lineTo(l->point[j].x, l->point[j].y);
     }
     path.close();
-    blend->context->fillPath(path, BLRgba(255, 0, 0, 1.0));
+
+    blend->context->fillPath(path, color);
   }
 
   return MS_SUCCESS;

@@ -429,7 +429,7 @@ static __inline long int MS_NINT(double __x) {
 #define MS_RENDER_WITH_KML 106
 #define MS_RENDER_WITH_UTFGRID 107
 #define MS_RENDER_WITH_MVT 108
-#define MS_RENDER_WITH_BLEND 110
+#define MS_RENDER_WITH_BLEND 109
 
 #ifndef SWIG
 
