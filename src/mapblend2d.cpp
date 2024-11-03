@@ -26,23 +26,33 @@
 * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 * DEALINGS IN THE SOFTWARE.
 *****************************************************************************/
-
+#include "iostream"
+#include <map>
+#include <tuple>
 #include "mapblend2d.h"
 #include <blend2d.h>
 #include "mapserver.h"
-#include <cpl_string.h>
 #include "cpl_conv.h"
-#include <gdal.h>
 #include "fontcache.h"
 #include <string.h>
 
 typedef struct blender {
   BLImage * img;
   BLContext * context;
+  std::map<std::tuple<int, int, int>, BLRgba> *colorLookup;
 } blender;
 
-static BLRgba colorObjToBlendRgba(colorObj * c) {
-  return BLRgba(c->red/ 255.0, c->green/ 255.0, c->blue/255.0, c->alpha /255.0);
+static BLRgba colorObjToBlendRgba(blender * context, colorObj * c) {
+  // not considering alpha
+//  std::tuple<int, int, int> key = {c->red, c->green, c->blue};
+
+//  if (context->colorLookup->count(key) > 0) {
+//    return (*context->colorLookup)[key];
+//  }
+
+  auto newColor = BLRgba(c->red/ 255.0, c->green/ 255.0, c->blue/255.0, c->alpha /255.0);
+//  (*context->colorLookup)[key] = newColor;
+  return newColor;
 }
 
 
@@ -91,13 +101,9 @@ static uint32_t mapserverLineCapToBlendLineCap(int mapserverLineCap) {
 }
 
 int renderLineBlend(imageObj *img, shapeObj *p, strokeStyleObj *stroke) {
-  msDebug("CALLING LINE");
   auto blend = imgContextToBlendContext(img);
-  blend->context->save();
 
-  BLPath line;
-
-  auto color = colorObjToBlendRgba(stroke->color);
+  auto color = colorObjToBlendRgba(blend,stroke->color);
   BLStrokeOptions options{};
   auto linecap = mapserverLineCapToBlendLineCap(stroke->linecap);
 
@@ -107,7 +113,7 @@ int renderLineBlend(imageObj *img, shapeObj *p, strokeStyleObj *stroke) {
 
   blend->context->setStrokeStyle(color);
   blend->context->setStrokeWidth(stroke->width);
-  //stroke->linecap
+
   for (int i = 0; i < p->numlines; i++) {
     BLPath path;
 
@@ -120,8 +126,6 @@ int renderLineBlend(imageObj *img, shapeObj *p, strokeStyleObj *stroke) {
 
     blend->context->strokePath(path);
   }
-
-  blend->context->restore();
   return MS_SUCCESS;
 }
 
@@ -172,20 +176,25 @@ imageObj *createImageBlend(int width, int height, outputFormatObj *format,
   image = (imageObj *)calloc(1, sizeof(imageObj));
   BLContextCreateInfo createInfo {};
 
-  // Configure the number of threads to use.
-  //
-  createInfo.threadCount = 10;
+  createInfo.threadCount = 1;
   auto renderer = new BLImage(width, height, BL_FORMAT_PRGB32);
-  auto ctx = new BLContext(*renderer,createInfo);
+
+  auto ctx = new BLContext(); // heap allocate
+
+  auto beginResult = ctx->begin(*renderer, createInfo);
+
+  if (beginResult != BL_SUCCESS) {
+    msSetError(MS_MISCERR,"Could not begin blend context", "createImageBlend()");
+    return NULL;
+  }
+
   blender * x = NULL;
   x = (blender *)calloc(1, sizeof(x));
   x->img = renderer;
   x->context = ctx;
-
   image->img.plugin = x;
-
+  x->colorLookup = new std::map<std::tuple<int, int, int>, BLRgba>();
   return image;
-
 }
 
 int saveImageBlend(imageObj *img, mapObj *map, FILE *fp,
@@ -204,24 +213,29 @@ int renderEllipseSymbolBlend(imageObj *img, double x, double y,
 
 
 int startLayerRasterBlend(imageObj *img, mapObj *map, layerObj *layer) {
+  auto blend = imgContextToBlendContext(img);
+  blend->context->save();
   return MS_SUCCESS;
 }
 
 int closeLayerRasterBlend(imageObj *img, mapObj *map, layerObj *layer) {
+
   auto blend = (blender*)img->img.plugin;
-  blend->context->end();
+  blend->context->restore();
+
   return MS_SUCCESS;
 }
 
 int getRasterBufferHandleBlend(imageObj *img, rasterBufferObj *rb) {
-  unsigned char *pb;
+
   auto blend = (blender*)img->img.plugin;
+  blend->context->end(); // tell blend to flush
   rb->type = MS_BUFFER_BYTE_RGBA;
-  auto imgData = new BLImageData{};
+  auto imgData = new BLImageData{}; // TODO: You don't clean this up!!!!
 
   blend->img->getData(imgData);
 
-  pb = (unsigned char *)imgData->pixelData;
+  auto *pb = (unsigned char *)imgData->pixelData;
   rb->data.rgba.pixels = (unsigned char *)imgData->pixelData;
   rb->data.rgba.row_step = imgData->stride;
   rb->data.rgba.pixel_step = 4;
@@ -271,19 +285,31 @@ int freeSymbolBlend(symbolObj *s) {
 int renderPolygonBlend(imageObj *img, shapeObj *p, colorObj *c) {
 
   auto blend = imgContextToBlendContext(img);
-  auto color = colorObjToBlendRgba(c);
+
+  auto currentColor = colorObjToBlendRgba(blend,c);
+
+  blend->context->setFillStyle(currentColor);
+
+//  for (int i = 0; i < p->numlines; i++) {
+//    BLPath path;
+//    lineObj *l = &(p->line[i]);
+//    path.moveTo(l->point[0].x, l->point[0].y);
+//    for (int j = 0; j < l->numpoints; j++) {
+//      path.lineTo(l->point[j].x, l->point[j].y);
+//    }
+//
+//    blend->context->fillPath(path);
+//  }
+
   for (int i = 0; i < p->numlines; i++) {
-    BLPath path;
-
+    BLArray<BLPoint> points;
     lineObj *l = &(p->line[i]);
-    path.moveTo(l->point[0].x, l->point[0].y);
 
-    for (int j = 1; j < l->numpoints; j++) {
-      path.lineTo(l->point[j].x, l->point[j].y);
+    for (int j = 0; j < l->numpoints; j++) {
+      points.append(BLPoint(l->point[j].x, l->point[j].y));
     }
-    path.close();
 
-    blend->context->fillPath(path, color);
+    blend->context->fillPolygon(points.view());
   }
 
   return MS_SUCCESS;
